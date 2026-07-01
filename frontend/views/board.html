@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Whiteboard — DrawSpace</title>
+  <link rel="stylesheet" href="/css/global.css" />
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--white);
+      z-index: 20;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 16px; }
+    .logo { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+    .logo span { color: var(--accent); }
+    .back-btn { font-size: 13px; color: var(--muted); }
+
+    .members { display: flex; align-items: center; gap: -8px; }
+    .member-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: #fff;
+      border: 2px solid var(--white);
+      margin-left: -8px;
+      font-family: var(--font-display);
+    }
+    .member-avatar:first-child { margin-left: 0; }
+
+    .board-wrap { flex: 1; position: relative; overflow: hidden; background: #fff; }
+    body.dark .board-wrap { background: #1a1a1a; }
+    canvas#board { position: absolute; inset: 0; touch-action: none; cursor: crosshair; }
+
+    .toolbar {
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 10px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 10px 16px;
+      box-shadow: var(--shadow);
+      z-index: 15;
+    }
+    .tool-btn {
+      width: 38px; height: 38px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 10px;
+      font-size: 17px;
+      background: transparent;
+      color: var(--ink);
+      transition: background .15s;
+    }
+    .tool-btn:hover { background: var(--surface); }
+    .tool-btn.active { background: var(--accent); color: #fff; }
+    .tool-sep { width: 1px; height: 24px; background: var(--border); }
+
+    input[type=color] {
+      width: 34px; height: 34px; padding: 0; border: none;
+      border-radius: 8px; cursor: pointer; background: none;
+    }
+    input[type=range] { width: 90px; }
+
+    /* Remote cursors */
+    .remote-cursor {
+      position: absolute; pointer-events: none; z-index: 10;
+      transform: translate(-2px, -2px);
+      transition: left .05s linear, top .05s linear;
+    }
+    .remote-cursor .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .remote-cursor .label {
+      position: absolute; top: 14px; left: 6px;
+      font-size: 11px; font-weight: 600; color: #fff;
+      padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+    }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      align-items: center; justify-content: center; z-index: 50;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-box { width: 100%; max-width: 380px; }
+    .invite-link {
+      display: flex; gap: 8px; margin-top: 12px;
+    }
+    .invite-link input { font-size: 12px; }
+
+    .room-full-banner {
+      position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+      background: var(--accent2); color: #fff; padding: 10px 18px;
+      border-radius: 8px; font-size: 13px; font-weight: 600;
+      display: none; z-index: 30;
+    }
+
+    .invite-divider {
+      text-align: center; color: var(--muted); font-size: 12px; margin: 18px 0 10px;
+      position: relative;
+    }
+    .invite-divider::before, .invite-divider::after {
+      content: ""; position: absolute; top: 50%;
+      width: 38%; height: 1px; background: var(--border);
+    }
+    .invite-divider::before { left: 0; }
+    .invite-divider::after  { right: 0; }
+
+    .online-friends-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .online-friend-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px; border-radius: 8px;
+    }
+    .of-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 12px; font-family: var(--font-display);
+      flex-shrink: 0; position: relative;
+    }
+    .of-avatar::after {
+      content: ""; position: absolute; bottom: -1px; right: -1px;
+      width: 9px; height: 9px; border-radius: 50%;
+      background: #22c55e; border: 2px solid var(--white);
+    }
+    .of-name { font-size: 14px; font-weight: 500; flex: 1; }
+    .of-status { font-size: 12px; color: var(--muted); }
+    .of-status.pending { color: var(--accent); font-weight: 600; }
+    .of-status.declined { color: var(--accent2); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <a href="/dashboard" class="back-btn">← Dashboard</a>
+      <div class="logo">Draw<span>Space</span></div>
+    </div>
+    <div class="flex items-center gap-16">
+      <div class="members" id="memberAvatars"></div>
+      <button class="btn btn-primary btn-sm" onclick="openInvite()">+ Invite friend</button>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board"></canvas>
+    <div id="cursorLayer"></div>
+    <div class="room-full-banner" id="roomFullBanner">This board is full (max 5 users).</div>
+
+    <div class="toolbar">
+      <button class="tool-btn active" id="tool-pen" onclick="setTool('pen')" title="Pen">✏️</button>
+      <button class="tool-btn" id="tool-highlighter" onclick="setTool('highlighter')" title="Highlighter">🖍️</button>
+      <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')" title="Eraser">🧹</button>
+      <button class="tool-btn" id="tool-pointer" onclick="setTool('pointer')" title="Pointer (no draw)">👆</button>
+      <div class="tool-sep"></div>
+      <input type="color" id="colorPicker" value="#0d0d0d" title="Colour" />
+      <input type="range" id="sizeSlider" min="1" max="50" value="4" title="Brush size" />
+      <div class="tool-sep"></div>
+      <button class="tool-btn" onclick="clearBoard()" title="Clear board">🗑️</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="inviteModal">
+    <div class="card modal-box">
+      <h3 style="font-family:var(--font-display);margin-bottom:8px;">Invite a friend</h3>
+      <p class="text-muted">Share this link — up to 5 people can draw together.</p>
+      <div class="invite-link">
+        <input type="text" id="inviteLinkInput" readonly />
+        <button class="btn btn-ghost btn-sm" onclick="copyInvite()">Copy</button>
+      </div>
+
+      <div class="invite-divider">or invite directly</div>
+      <div class="online-friends-list" id="onlineFriendsList">
+        <p class="text-muted" style="padding:8px;">Loading online friends…</p>
+      </div>
+
+      <button class="btn btn-ghost w-full mt-16" onclick="closeInvite()">Close</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/whiteboard.js"></script>
+</body>
+</html>

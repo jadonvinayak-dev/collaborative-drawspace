@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DrawSpace — Draw Together</title>
+  <link rel="stylesheet" href="/css/global.css" />
+  <style>
+    body { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+
+    .hero {
+      background: var(--ink);
+      color: var(--surface);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0;
+      background: radial-gradient(ellipse at 30% 60%, rgba(92,110,248,.35) 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 20%, rgba(255,107,107,.2) 0%, transparent 50%);
+    }
+    .hero > * { position: relative; z-index: 1; }
+    .logo { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+    .logo span { color: var(--accent); }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 3vw, 3.2rem);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .hero-sub { color: #aaa; font-size: 16px; line-height: 1.6; max-width: 380px; }
+    .live-stats { display: flex; gap: 32px; }
+    .stat-item { display: flex; flex-direction: column; }
+    .stat-num {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .08em; }
+
+    #hero-canvas { position: absolute; inset: 0; z-index: 0; opacity: .15; }
+
+    .auth-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 40px;
+    }
+    .auth-box { width: 100%; max-width: 420px; }
+    .auth-tabs { display: flex; gap: 4px; margin-bottom: 28px; background: var(--border); border-radius: 8px; padding: 4px; }
+    .auth-tab {
+      flex: 1;
+      padding: 8px;
+      border-radius: 6px;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      transition: background .2s, color .2s;
+    }
+    .auth-tab.active { background: var(--white); color: var(--ink); }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+    .auth-form { display: none; }
+    .auth-form.active { display: block; }
+
+    .captcha-box {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 16px 0;
+    }
+    .captcha-question {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 16px;
+      white-space: nowrap;
+    }
+    .captcha-question .eq { color: var(--muted); margin-left: 4px; }
+    .captcha-box input {
+      flex: 1;
+      text-align: center;
+      font-weight: 600;
+    }
+    .captcha-refresh {
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .captcha-refresh:hover { background: var(--border); color: var(--ink); }
+
+    @media (max-width: 768px) {
+      body { grid-template-columns: 1fr; }
+      .hero { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <canvas id="hero-canvas"></canvas>
+    <div class="hero-bg"></div>
+    <div class="logo">Draw<span>Space</span></div>
+    <div>
+      <h1 class="hero-title">A canvas<br/>for every<br/>idea.</h1>
+      <p class="hero-sub">Real-time collaborative whiteboard. Invite friends, draw together, and bring ideas to life.</p>
+    </div>
+    <div class="live-stats">
+      <div class="stat-item">
+        <span class="stat-num" id="activeCount">–</span>
+        <span class="stat-label">Drawing now</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num" id="registeredCount">–</span>
+        <span class="stat-label">Accounts</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-box">
+      <h2 style="font-family:var(--font-display);font-size:24px;margin-bottom:8px;">Welcome</h2>
+      <p class="text-muted" style="margin-bottom:24px;">Sign in or create a free account to start drawing.</p>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchTab('login')">Log in</button>
+        <button class="auth-tab" onclick="switchTab('signup')">Sign up</button>
+      </div>
+
+      <div class="auth-form active" id="form-login">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="login-username" placeholder="coolartist" maxlength="20" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" />
+        </div>
+        <div class="captcha-box">
+          <span class="captcha-question" id="captcha-question-login">…<span class="eq">= ?</span></span>
+          <input type="number" id="captcha-answer-login" placeholder="Answer" />
+          <button class="captcha-refresh" type="button" onclick="loadCaptcha('login')" title="New question">↻</button>
+        </div>
+        <button class="btn btn-primary w-full" onclick="doLogin()">Log in</button>
+      </div>
+
+      <div class="auth-form" id="form-signup">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="signup-username" placeholder="coolartist" maxlength="20" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="signup-password" placeholder="at least 6 characters" />
+        </div>
+        <div class="captcha-box">
+          <span class="captcha-question" id="captcha-question-signup">…<span class="eq">= ?</span></span>
+          <input type="number" id="captcha-answer-signup" placeholder="Answer" />
+          <button class="captcha-refresh" type="button" onclick="loadCaptcha('signup')" title="New question">↻</button>
+        </div>
+        <button class="btn btn-primary w-full" onclick="doRegister()">Create account</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    async function loadCaptcha(formId) {
+      try {
+        const res = await fetch(`/api/auth/captcha?form=${formId}`, { credentials: "same-origin" });
+        const { question } = await res.json();
+        const el = document.getElementById(`captcha-question-${formId}`);
+        el.innerHTML = `${question}<span class="eq">= ?</span>`;
+        document.getElementById(`captcha-answer-${formId}`).value = "";
+      } catch {
+        showToast("Couldn't load captcha, retrying…", "error");
+      }
+    }
+    loadCaptcha("login");
+    loadCaptcha("signup");
+
+    const socket = io();
+    socket.on("activeUsers", (n) => { document.getElementById("activeCount").textContent = n; });
+    fetch("/api/auth/stats", { credentials: "same-origin" }).then(r=>r.json()).then(({registered}) => {
+      document.getElementById("registeredCount").textContent = registered;
+    });
+
+    function switchTab(tab) {
+      document.querySelectorAll(".auth-tab").forEach((el, i) =>
+        el.classList.toggle("active", (i === 0 && tab === "login") || (i === 1 && tab === "signup")));
+      document.getElementById("form-login").classList.toggle("active", tab === "login");
+      document.getElementById("form-signup").classList.toggle("active", tab === "signup");
+    }
+
+    function showToast(msg, type="info") {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.className = `show ${type}`;
+      setTimeout(() => t.className = "", 3500);
+    }
+
+    async function doLogin() {
+      const username = document.getElementById("login-username").value.trim();
+      const password = document.getElementById("login-password").value;
+      const captchaAnswer = document.getElementById("captcha-answer-login").value;
+      if (!username || !password || captchaAnswer === "") return showToast("Please fill all fields.", "error");
+
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({username, password, captchaAnswer})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error, "error");
+        loadCaptcha("login");
+        return;
+      }
+      showToast("Welcome back!", "success");
+      setTimeout(() => location.href = "/dashboard", 600);
+    }
+
+    async function doRegister() {
+      const username = document.getElementById("signup-username").value.trim();
+      const password = document.getElementById("signup-password").value;
+      const captchaAnswer = document.getElementById("captcha-answer-signup").value;
+      if (!username || !password || captchaAnswer === "") return showToast("Please fill all fields.", "error");
+
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({username, password, captchaAnswer})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error, "error");
+        loadCaptcha("signup");
+        return;
+      }
+      showToast("Account created! Redirecting…", "success");
+      setTimeout(() => location.href = "/dashboard", 800);
+    }
+
+    (function () {
+      const canvas = document.getElementById("hero-canvas");
+      const ctx = canvas.getContext("2d");
+      let W, H, lines = [];
+      function resize() {
+        W = canvas.width  = canvas.offsetWidth;
+        H = canvas.height = canvas.offsetHeight;
+      }
+      resize();
+      window.addEventListener("resize", resize);
+
+      for (let i = 0; i < 18; i++) {
+        lines.push({
+          x: Math.random() * 1000, y: Math.random() * 1000,
+          vx: (Math.random() - .5) * .6, vy: (Math.random() - .5) * .6,
+          r: Math.random() * 100 + 40,
+          hue: Math.random() * 60 + 220,
+        });
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+        lines.forEach(l => {
+          l.x += l.vx; l.y += l.vy;
+          if (l.x < -l.r) l.x = W + l.r;
+          if (l.x > W + l.r) l.x = -l.r;
+          if (l.y < -l.r) l.y = H + l.r;
+          if (l.y > H + l.r) l.y = -l.r;
+          ctx.beginPath();
+          ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${l.hue}, 80%, 60%, .12)`;
+          ctx.fill();
+        });
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
+</body>
+</html>

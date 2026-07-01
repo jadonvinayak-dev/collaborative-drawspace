@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — DrawSpace</title>
+  <link rel="stylesheet" href="/css/global.css" />
+  <style>
+    .topbar {
+      display: flex; align-items: center; gap: 16px;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+    }
+    .logo { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+    .logo span { color: var(--accent); }
+    .back-btn { font-size: 13px; color: var(--muted); margin-left: auto; }
+
+    .wrap {
+      max-width: 520px; margin: 48px auto; padding: 0 20px;
+    }
+    .wrap h1 { font-size: 26px; margin-bottom: 24px; }
+
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0; border-top: 1px solid var(--border);
+    }
+    .switch { position: relative; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--border); border-radius: 99px; transition: .2s;
+    }
+    .slider::before {
+      content: ""; position: absolute; height: 18px; width: 18px;
+      left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s;
+    }
+    input:checked + .slider { background: var(--accent); }
+    input:checked + .slider::before { transform: translateX(20px); }
+
+    .danger-zone {
+      margin-top: 32px; padding: 16px; border: 1.5px solid var(--accent2);
+      border-radius: 10px;
+    }
+    .danger-zone h3 { font-size: 14px; color: var(--accent2); margin-bottom: 6px; }
+
+    .action-row { display: flex; gap: 12px; margin-top: 28px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">Draw<span>Space</span></div>
+    <a href="/dashboard" class="back-btn">← Dashboard</a>
+  </div>
+
+  <div class="wrap">
+    <h1>Settings</h1>
+
+    <div class="card">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="usernameInput" maxlength="20" />
+      </div>
+
+      <div class="toggle-row">
+        <span>Dark theme</span>
+        <label class="switch">
+          <input type="checkbox" id="themeToggle" onchange="previewTheme()" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" onclick="saveSettings()">Save changes</button>
+        <button class="btn btn-ghost" onclick="location.href='/dashboard'">Cancel</button>
+      </div>
+
+      <div class="danger-zone">
+        <h3>Danger zone</h3>
+        <p class="text-muted">Deleting your account is permanent and cannot be undone.</p>
+        <button class="btn btn-danger mt-16" onclick="deleteAccount()">Delete my account</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/common.js"></script>
+  <script>
+    let originalTheme = "light";
+
+    function previewTheme() {
+      const dark = document.getElementById("themeToggle").checked;
+      document.body.classList.toggle("dark", dark);
+    }
+
+    async function saveSettings() {
+      const username = document.getElementById("usernameInput").value.trim();
+      const theme = document.getElementById("themeToggle").checked ? "dark" : "light";
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, theme }),
+      });
+      const data = await res.json();
+      if (!res.ok) return showToast(data.error, "error");
+      showToast("Settings saved!", "success");
+    }
+
+    async function deleteAccount() {
+      if (!confirm("This will permanently delete your account. Are you sure?")) return;
+      if (!confirm("This action cannot be undone. Confirm deletion?")) return;
+      const res = await fetch("/api/settings/account", { method: "DELETE" });
+      if (res.ok) {
+        showToast("Account deleted.", "info");
+        setTimeout(() => (location.href = "/"), 1000);
+      } else {
+        showToast("Something went wrong.", "error");
+      }
+    }
+
+    (async () => {
+      const user = await requireUser();
+      if (!user) return;
+      document.getElementById("usernameInput").value = user.username;
+      document.getElementById("themeToggle").checked = user.theme === "dark";
+      if (user.theme === "dark") document.body.classList.add("dark");
+
+      const socket = io();
+      attachBoardInviteListener(socket);
+    })();
+  </script>
+</body>
+</html>

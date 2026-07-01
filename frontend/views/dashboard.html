@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — DrawSpace</title>
+  <link rel="stylesheet" href="/css/global.css" />
+  <style>
+    body {
+      display: flex; flex-direction: column;
+      min-height: 100vh;
+    }
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 40px;
+    }
+    .logo { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+    .logo span { color: var(--accent); }
+    .user-chip { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; font-family: var(--font-display);
+    }
+
+    main {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 28px;
+      padding: 40px;
+    }
+    .welcome { text-align: center; margin-bottom: 8px; }
+    .welcome h1 { font-size: clamp(1.8rem, 3vw, 2.6rem); }
+    .welcome p { color: var(--muted); margin-top: 8px; }
+
+    .option-grid {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-end;
+    }
+    .option-card {
+      width: 200px;
+      height: 220px;
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px;
+      transition: transform .18s, border-color .18s, box-shadow .18s;
+      box-shadow: var(--shadow);
+    }
+    .option-card:hover { transform: translateY(-6px); border-color: var(--accent); }
+    .option-icon { font-size: 38px; }
+    .option-card span { font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+
+    .option-card.logout:hover { border-color: var(--accent2); }
+
+    @media (max-width: 600px) {
+      nav { padding: 16px 20px; }
+      .option-grid { gap: 16px; }
+      .option-card { width: 150px; height: 170px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="logo">Draw<span>Space</span></div>
+    <div class="user-chip">
+      <div class="avatar" id="avatarInitial">?</div>
+      <span id="usernameLabel">Loading…</span>
+    </div>
+  </nav>
+
+  <main>
+    <div class="welcome">
+      <h1>What would you like to do?</h1>
+      <p>Pick an option below to get started.</p>
+    </div>
+
+    <div class="option-grid">
+      <button class="option-card" onclick="location.href='/board'">
+        <div class="option-icon">🎨</div>
+        <span>Start</span>
+      </button>
+      <button class="option-card" onclick="location.href='/social'">
+        <div class="option-icon">👥</div>
+        <span>Social</span>
+      </button>
+      <button class="option-card" onclick="location.href='/settings'">
+        <div class="option-icon">⚙️</div>
+        <span>Settings</span>
+      </button>
+      <button class="option-card logout" onclick="doLogout()">
+        <div class="option-icon">🚪</div>
+        <span>Logout</span>
+      </button>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/common.js"></script>
+  <script>
+    (async () => {
+      const user = await requireUser();
+      if (!user) return;
+      document.getElementById("usernameLabel").textContent = user.username;
+      document.getElementById("avatarInitial").textContent = user.username[0].toUpperCase();
+      if (user.theme === "dark") document.body.classList.add("dark");
+
+      const socket = io();
+      attachBoardInviteListener(socket);
+    })();
+
+    async function doLogout() {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.href = "/";
+    }
+  </script>
+</body>
+</html>
